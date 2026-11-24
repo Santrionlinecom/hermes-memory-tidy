@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+# Local scan reports of a real profile must never be committed.
+laporan-*.json
+*-report.json

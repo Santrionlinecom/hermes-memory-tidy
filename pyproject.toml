@@ -1,0 +1,10 @@
+[project]
+name = "memory-tidy"
+version = "0.1.0"
+description = "Hermes plugin that keeps MEMORY.md / USER.md lean (dedupe against SOUL.md and skills)."
+license = { text = "MIT" }
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

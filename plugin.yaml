@@ -1,0 +1,38 @@
+name: memory-tidy
+version: 0.1.0
+manifest_version: 2
+api_version: 1
+description: >-
+  Keeps the persistent memory files (MEMORY.md, USER.md) lean: finds entries that duplicate
+  SOUL.md or a skill, procedures that belong in a skill and overlapping entries, and applies
+  reviewed tidy plans with dry run, backups, the memory file lock and atomic writes.
+author: Santrionlinecom
+license: MIT
+tags: [memory, skills, soul, cleanup, dedupe]
+requires_hermes: ">=0.21.5"
+provides_tools:
+  - memory_tidy_scan
+  - memory_tidy_apply
+provides_hooks:
+  - pre_llm_call
+config_schema:
+  enabled:
+    type: bool
+    default: true
+    description: Run the periodic check at the start of a new session.
+  usage_threshold:
+    type: int
+    default: 85
+    description: Suggest /memory-tidy when MEMORY.md or USER.md uses at least this percent of its budget.
+  exact_threshold:
+    type: float
+    default: 0.92
+    description: Similarity (0.8-1.0) at which an entry counts as a near-exact copy of SOUL.md.
+  check_interval_hours:
+    type: int
+    default: 24
+    description: Minimum hours between two periodic checks.
+  auto_apply_exact:
+    type: bool
+    default: false
+    description: Let the periodic check remove near-exact SOUL.md duplicates itself (with backup).
