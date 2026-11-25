@@ -1,0 +1,57 @@
+name: Bug report
+description: Something in memory-tidy does not work as documented
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **Do not paste real MEMORY.md, USER.md or SOUL.md contents.**
+        Reproduce with a small synthetic example instead (see `examples/make_demo_home.py`).
+        Security problems: please follow SECURITY.md instead of opening an issue.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you ran, what you expected, and what you got.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Synthetic reproduction
+      description: Minimal SOUL.md / memory entries / skill text and the command or tool call.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: Scan summary, JSON excerpt or error message (remove host paths).
+      render: text
+  - type: input
+    id: plugin-version
+    attributes:
+      label: memory-tidy version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: hermes-version
+    attributes:
+      label: Hermes Agent version
+      description: Output of `hermes --version`
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: OS and Python version
+      placeholder: "Ubuntu 24.04, Python 3.11"
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy
+      options:
+        - label: This report contains no real memory contents, tokens or private paths.
+          required: true
