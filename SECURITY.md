@@ -15,7 +15,7 @@ Please report privately, not in a public issue:
 
 - GitHub: **Security → Report a vulnerability** on this repository (private vulnerability
   reporting), or
-- email websantrionline@gmail.com with the subject `memory-tidy security`.
+- email masyogik@santrionline.com with the subject `memory-tidy security`.
 
 Include the version, what you did, what happened, and a **synthetic** reproduction. Do not send real
 `MEMORY.md`, `USER.md` or `SOUL.md` contents.
