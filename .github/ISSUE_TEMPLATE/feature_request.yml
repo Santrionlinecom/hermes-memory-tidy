@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest an improvement to memory-tidy
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is hard or impossible today? A synthetic example helps.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should memory-tidy do instead?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraints
+      options:
+        - label: The idea works without network or LLM calls and without new runtime dependencies.
+        - label: It keeps dry run, backups and the unique-fact check intact.
