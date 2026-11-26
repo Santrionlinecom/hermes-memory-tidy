@@ -1,6 +1,19 @@
 # Changelog
 
-## Unreleased
+## 0.1.1
+
+- Fix #1: `move_to_skill` no longer points at unrelated skills. A target now needs at least two
+  uncommon entry words in its folder name, `name` or `description`, three shared words and a 15%
+  lead over the runner-up; otherwise the suggestion is `move_to_skill:<new skill>`. Words shared by
+  most of the profile's own entries (owner name, year) are ignored as topic. A partly-covering skill
+  must pass the same topic check. The evidence now carries `skill_candidates` (top three, with score,
+  shared word count and matched head words).
+- Fix: memory limits are read from the scanned home's own `config.yaml` first. Hermes' loader only
+  knows the active profile, so scanning another profile (or a test home) reported the active
+  profile's limits.
+- Regression tests with a synthetic 60-skill tree full of decoys.
+
+## Documentation update (after 0.1.0)
 
 Documentation and repository presentation only; no change to plugin behaviour.
 
