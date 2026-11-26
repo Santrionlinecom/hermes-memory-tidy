@@ -182,6 +182,12 @@ a file changed since the scan, the plan is refused and you re-scan.
   threshold). Overlaps use token containment / shingle overlap between entries.
 - Procedure-likeness scores numbered steps, command lines, CLI flags, paths, URLs, IDs, versions,
   imperative sentences and env variables.
+- **`move_to_skill` target**: a skill is suggested only when its folder name, `name` or `description`
+  contains at least two of the entry's words that few other skills use, it shares at least three
+  words with the entry, and it clearly beats the runner-up (15% margin). Words most of your own
+  entries share (your name, the year) don't count as topic. Otherwise the action is
+  `move_to_skill:<new skill>`. Either way `evidence[0].skill_candidates` lists the top three skills
+  with score, shared word count and the head words that matched, so you can judge.
 - Stale hints flag dates more than 120 days old and temporary wording ("currently", "for now",
   "until ..."). They are hints only.
 - The first scan of a large skills tree takes a few seconds; later scans in the same process reuse
@@ -240,12 +246,12 @@ Found a security problem? Please report it privately, see [SECURITY.md](SECURITY
 
 ## Known limitations
 
-- **`move_to_skill` can point at an unrelated skill.** When no skill already covers the entry, the
-  target is the `SKILL.md` with the best idf-weighted word overlap, and the bar is low. On a large
-  skills tree we have seen a note about a GPU cloud provider suggested for an ECG-simulator skill,
-  and a note about a mail app password suggested for a document-search (RAG) skill. Treat the path
-  as a hint and check the target before writing `append_skill`. Tracked in
-  [#1](https://github.com/Santrionlinecom/hermes-memory-tidy/issues/1).
+- **`move_to_skill` is still a hint.** Since 0.1.1 a target must name the entry's topic in its
+  `name`/`description` ([#1](https://github.com/Santrionlinecom/hermes-memory-tidy/issues/1)), which
+  stops suggestions such as a GPU-cloud note going to an ECG-simulator skill. Matching is still by
+  words, so a skill can win on two topic words the entry mentions in passing, and a good home whose
+  description uses other words is missed. Check `skill_candidates` and the target before writing
+  `append_skill`; the dry run shows the diff.
 - **English stopwords only.** Memory written in other languages still works, but scores are noisier
   because function words are not filtered out.
 - **Lexical, not semantic.** Two entries that say the same thing in different words are not

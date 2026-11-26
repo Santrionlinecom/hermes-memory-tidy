@@ -84,24 +84,33 @@ class Layout:
 
 
 def read_limits(home: Path) -> dict[str, int]:
-    """Character budgets the memory tool enforces: Hermes config first, then config.yaml, then defaults."""
+    """Character budgets the memory tool enforces: the home's config.yaml, else Hermes' loader, else defaults.
+
+    The home's own config.yaml comes first: Hermes' loader only knows the ACTIVE profile (and caches it),
+    so scanning another profile or a test home through it would report the active profile's limits.
+    """
     section = None
     try:
-        from hermes_cli.config import load_config_readonly  # type: ignore
+        import yaml  # type: ignore
 
-        cfg = load_config_readonly() or {}
+        with open(Path(home) / "config.yaml", encoding="utf-8") as fh:
+            cfg = yaml.safe_load(fh) or {}
         section = cfg.get("memory") if isinstance(cfg, dict) else None
     except Exception:
         section = None
     if not isinstance(section, dict):
         try:
-            import yaml  # type: ignore
+            same_home = Path(home).resolve() == hermes_home().resolve()
+        except OSError:
+            same_home = False
+        if same_home:
+            try:
+                from hermes_cli.config import load_config_readonly  # type: ignore
 
-            with open(home / "config.yaml", encoding="utf-8") as fh:
-                cfg = yaml.safe_load(fh) or {}
-            section = cfg.get("memory") if isinstance(cfg, dict) else None
-        except Exception:
-            section = None
+                cfg = load_config_readonly() or {}
+                section = cfg.get("memory") if isinstance(cfg, dict) else None
+            except Exception:
+                section = None
     section = section if isinstance(section, dict) else {}
     limits = dict(DEFAULT_LIMITS)
     for target, key in (("memory", "memory_char_limit"), ("user", "user_char_limit")):
