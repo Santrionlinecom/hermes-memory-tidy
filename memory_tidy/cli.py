@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-from .service import Settings, run_exact, summarize, tool_apply
+from .service import Settings, run_exact, summarize, user_apply
 from .scanner import scan
 
 
@@ -39,8 +39,7 @@ def run_cli(args: argparse.Namespace, settings: Settings | None = None) -> int:
         return 0
     if cmd == "apply":
         plan = json.loads(Path(args.plan).read_text(encoding="utf-8"))
-        res = tool_apply({"actions": plan, "dry_run": not args.write,
-                          "force_unique_loss": args.force_unique_loss}, settings, home)
+        res = user_apply(plan, home, write=args.write, force_unique_loss=args.force_unique_loss)
     else:
         res = run_exact(settings, home, dry_run=not args.write)
     print(json.dumps(res, indent=2, ensure_ascii=False))

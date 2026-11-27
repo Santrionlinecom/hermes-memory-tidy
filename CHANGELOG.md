@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.2
+
+Review feedback on the plugin-catalog listing (NousResearch/hermes-agent#159817).
+
+- The `memory_tidy_apply` tool honours `write_approval`. With `memory.write_approval: true` (or
+  `skills.write_approval: true` for skill files) a real run writes nothing: the tool returns the
+  dry-run diff, saves the plan under `$HERMES_HOME/memory-tidy/plans/` and answers
+  `"status": "needs_user"` with the `hermes memory-tidy apply <plan> --write` command for the user.
+  The setting is read like Hermes reads it (home `config.yaml`, then `tools.write_approval` for the
+  active profile); an unparsable `config.yaml` counts as on.
+- The tool no longer commits model-written text. `add`, `replace` and `append_skill` are dry-run only
+  from the tool, whatever `write_approval` says; they are applied by the user's CLI command, which
+  now calls the applier directly instead of the tool path. A real run from the tool commits
+  `remove` actions only.
+- The periodic check skips `auto_apply_exact` while `memory.write_approval` is on and says so.
+- Tests: `tests/test_write_gate.py`.
+
 ## 0.1.1
 
 - Fix #1: `move_to_skill` no longer points at unrelated skills. A target now needs at least two

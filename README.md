@@ -126,7 +126,7 @@ Ask the agent to review the scan and prepare a memory_tidy_apply plan (dry run f
 | Surface | What it does |
 |---|---|
 | `memory_tidy_scan` tool | Read-only JSON report: usage %, verdicts, evidence, suggested actions (`remove`, `merge_with:<idx>`, `move_to_skill:<path>`, `keep`) and hints. |
-| `memory_tidy_apply` tool | Applies a plan of `remove`, `replace`, `add` and `append_skill` actions. Dry run by default. |
+| `memory_tidy_apply` tool | Dry-runs a plan of `remove`, `replace`, `add` and `append_skill` actions. A real run from the model commits `remove` only, and only while `memory.write_approval` is off; anything else is saved as a plan file for the user's CLI. |
 | `/memory-tidy` | Scan summary in chat (read-only). |
 | `/memory-tidy preview-exact` | Shows the entries that are near-exact copies of `SOUL.md`, without writing. |
 | `/memory-tidy apply-exact` | Removes only those entries (backup kept). |
@@ -147,8 +147,16 @@ A typical round:
    ]
    ```
 
-3. Call `memory_tidy_apply` with the plan (dry run), read the diff, then call it again with
-   `"dry_run": false`.
+3. Call `memory_tidy_apply` with the plan (dry run) and read the diff.
+4. Commit it. A remove-only plan can be committed by the tool with `"dry_run": false` (unless
+   `memory.write_approval` is on). This plan writes model-authored text (`append_skill`), so the
+   tool answers `"status": "needs_user"`, saves the plan under `$HERMES_HOME/memory-tidy/plans/` and
+   returns the command for you to run yourself:
+
+   ```bash
+   hermes memory-tidy apply ~/.hermes/memory-tidy/plans/<file>.json          # dry run
+   hermes memory-tidy apply ~/.hermes/memory-tidy/plans/<file>.json --write  # really write
+   ```
 
 | Action | Fields |
 |---|---|
@@ -211,6 +219,15 @@ checks and writes), [`store.py`](memory_tidy/store.py) (file format, lock, atomi
   (`memory.memory_char_limit` / `memory.user_char_limit`, same counting rule as the memory tool).
   A file that is already over budget may shrink but never grow.
 - **Dry run by default.** Nothing is written unless `dry_run` is `false`.
+- **The model never commits its own text.** `add`, `replace` and `append_skill` write text that the
+  model wrote into files that load into future prompts. Hermes screens such text in its own `memory`
+  and `skill_manage` tools; this plugin does not duplicate that screening, so from the
+  `memory_tidy_apply` tool those actions are dry-run only. The user applies them with
+  `hermes memory-tidy apply <plan> --write` after reading the diff.
+- **`write_approval` is honoured.** With `memory.write_approval: true` (or `skills.write_approval:
+  true` for skill files) the tool writes nothing at all, not even a `remove`: it returns the diff and
+  a saved plan for the user. The periodic `auto_apply_exact` is skipped too. The setting is read the
+  way Hermes reads it, and a `config.yaml` that cannot be parsed counts as on (fails closed).
 - **Backups.** A real run copies every file it changes to
   `$HERMES_HOME/memory-tidy/backups/<timestamp>/` with a `manifest.json` holding the plan.
 - **Concurrency.** Reads and writes happen under the memory tool's own lock files
@@ -224,8 +241,10 @@ checks and writes), [`store.py`](memory_tidy/store.py) (file format, lock, atomi
 ### Disclosure
 
 Reads `SOUL.md`, `memories/MEMORY.md`, `memories/USER.md` and the `SKILL.md` files under `skills/`.
-Writes only when a tidy plan is applied with `dry_run: false` (memory files and skill `.md` files,
-with backups under `$HERMES_HOME/memory-tidy/`), plus the periodic check's timestamp in
+Writes memory files and skill `.md` files only when a plan is committed: by the tool for remove-only
+plans while `memory.write_approval` is off, otherwise by the user's `hermes memory-tidy apply --write`
+(backups under `$HERMES_HOME/memory-tidy/`). Plans the tool may not commit are saved under
+`$HERMES_HOME/memory-tidy/plans/`. Also writes the periodic check's timestamp in
 `$HERMES_HOME/memory-tidy/state.json` (and, only if you set `auto_apply_exact: true`, near-exact
 `SOUL.md` duplicates removed with a backup). One `pre_llm_call` hook adds a short suggestion to the
 first turn of a new session when a memory file is near its budget.
@@ -265,7 +284,8 @@ Found a security problem? Please report it privately, see [SECURITY.md](SECURITY
 No. Everything runs locally inside the Hermes process; the code makes no network or LLM calls.
 
 **Can it delete something important?**
-Only through a plan you approve with `dry_run: false`, or `apply-exact` for entries that are
+Only through a remove-only plan (blocked while `memory.write_approval` is on), a plan you apply
+yourself with `hermes memory-tidy apply --write`, or `apply-exact` for entries that are
 near-exact copies of `SOUL.md`. Removals that would lose a unique literal or sentence are refused,
 and every real run makes a backup first.
 
