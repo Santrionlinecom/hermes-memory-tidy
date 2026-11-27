@@ -83,6 +83,49 @@ class Layout:
         return self.data / "state.json"
 
 
+_TRUTHY = frozenset({"on", "true", "yes", "1", "approve", "enabled"})
+
+
+def _truthy(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    return isinstance(value, str) and value.strip().lower() in _TRUTHY
+
+
+def write_approval_enabled(home: Path, subsystem: str) -> bool:
+    """Whether ``<subsystem>.write_approval`` ("memory" or "skills") is on for ``home``.
+
+    Same source order as :func:`read_limits`: the home's own config.yaml, then Hermes' own gate
+    (``tools.write_approval``) when ``home`` is the active profile. Values are read the way Hermes
+    reads them (bools and on/true/yes/1/approve/enabled). A config.yaml that exists but cannot be
+    parsed counts as ON: an approval gate fails closed.
+    """
+    cfg_path = Path(home) / "config.yaml"
+    if cfg_path.exists():
+        try:
+            import yaml  # type: ignore
+
+            with open(cfg_path, encoding="utf-8") as fh:
+                cfg = yaml.safe_load(fh) or {}
+        except Exception:
+            return True
+        section = cfg.get(subsystem) if isinstance(cfg, dict) else None
+        if isinstance(section, dict) and "write_approval" in section:
+            return _truthy(section.get("write_approval"))
+    try:
+        same_home = Path(home).resolve() == hermes_home().resolve()
+    except OSError:
+        same_home = False
+    if same_home:
+        try:
+            from tools.write_approval import write_approval_enabled as _hermes_gate  # type: ignore
+
+            return bool(_hermes_gate(subsystem))
+        except Exception:
+            pass
+    return False
+
+
 def read_limits(home: Path) -> dict[str, int]:
     """Character budgets the memory tool enforces: the home's config.yaml, else Hermes' loader, else defaults.
 

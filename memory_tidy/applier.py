@@ -41,6 +41,8 @@ from .textsim import coverage, snippet
 
 ENTRY_ACTIONS = {"remove", "replace", "add"}
 ALL_ACTIONS = ENTRY_ACTIONS | {"append_skill"}
+# Actions that carry new, model-authored text into files that load into future prompts.
+TEXT_ACTIONS = frozenset({"add", "replace", "append_skill"})
 MAX_SKILL_APPEND = 50_000
 
 
@@ -67,6 +69,11 @@ def _norm_plan(plan: Any) -> list[dict]:
             raise PlanError(f"action {i}: unknown action {a.get('action')!r} (use {sorted(ALL_ACTIONS)})")
         out.append({**a, "action": kind, "_n": i})
     return out
+
+
+def plan_actions(plan: Any) -> list[dict]:
+    """Normalized actions of a plan (raises PlanError like :func:`apply_plan` would refuse)."""
+    return _norm_plan(plan)
 
 
 def resolve_skill_path(layout: store.Layout, raw: Any) -> Path:

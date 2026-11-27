@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from . import store
-from .applier import apply_plan, exact_plan
+from .applier import TEXT_ACTIONS, apply_plan, exact_plan, plan_actions
 from .scanner import DEFAULT_EXACT_THRESHOLD, VERDICTS, scan
 
 COMMAND = "memory-tidy"
@@ -104,7 +104,11 @@ APPLY_SCHEMA = {
     "name": "memory_tidy_apply",
     "description": (
         "Apply a reviewed tidy plan to memories/MEMORY.md, memories/USER.md and skill files. DRY RUN BY "
-        "DEFAULT: returns the diff and writes nothing until dry_run=false. Actions: "
+        "DEFAULT: returns the diff and writes nothing until dry_run=false. From this tool a real run only "
+        "commits 'remove' actions, and only while memory.write_approval is off. Plans with 'add', 'replace' "
+        "or 'append_skill' (text you wrote), or any plan while write_approval is on, are saved as a plan "
+        "file instead (status 'needs_user'): show the user the diff and the command it returns "
+        "(hermes memory-tidy apply <plan> --write); never try to work around it. Actions: "
         "{action:'remove', target:'memory'|'user', index|id}, {action:'replace', target, index|id, text}, "
         "{action:'add', target, text}, {action:'append_skill', path:'skills/<...>.md', text}. Never touches "
         "SOUL.md or paths outside skills/. Refuses a remove/replace that would lose facts found nowhere "
@@ -134,11 +138,72 @@ def tool_scan(args: dict, settings: Settings, home: Path | None = None) -> dict:
     return report
 
 
+def _flag(value: Any, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+
 def tool_apply(args: dict, settings: Settings, home: Path | None = None) -> dict:
-    dry = args.get("dry_run", True)
-    dry = not (dry is False or str(dry).strip().lower() in ("false", "0", "no"))
-    force = args.get("force_unique_loss") is True or str(args.get("force_unique_loss")).lower() == "true"
-    return apply_plan(args.get("actions"), home, dry_run=dry, force_unique_loss=force)
+    """``memory_tidy_apply`` as called by the MODEL.
+
+    A real run commits only when every action is ``remove`` and ``memory.write_approval`` is off.
+    Anything else gets the dry-run result plus a saved plan file the user applies with the CLI:
+
+    * ``add`` / ``replace`` / ``append_skill`` carry model-written text into files that load into
+      future prompts. Hermes screens such text in its own memory and skill tools; this tool does not
+      re-implement that screening, so it never commits that text itself.
+    * ``memory.write_approval`` / ``skills.write_approval`` mean "no memory or skill write without my
+      approval". This tool honours them by not writing at all.
+    """
+    raw_dry = args.get("dry_run", True)  # anything but an explicit "false" stays a dry run
+    dry = not (raw_dry is False or str(raw_dry).strip().lower() in ("false", "0", "no", "off"))
+    force = _flag(args.get("force_unique_loss"), False)
+    plan = args.get("actions")
+    result = apply_plan(plan, home, dry_run=True, force_unique_loss=force)
+    if dry or result.get("status") != "dry_run":
+        return result  # plain dry run, or a refusal the model must fix first
+
+    layout = store.Layout(Path(home) if home else store.hermes_home())
+    kinds = {a["action"] for a in plan_actions(plan)}
+    reasons = []
+    text_kinds = sorted(kinds & TEXT_ACTIONS)
+    if text_kinds:
+        reasons.append(f"{', '.join(text_kinds)} write model-authored text; only the user applies those")
+    gated = [s for s, needed in (("memory", bool(kinds - {"append_skill"})), ("skills", "append_skill" in kinds))
+             if needed and store.write_approval_enabled(layout.home, s)]
+    if gated:
+        reasons.append(" and ".join(f"{s}.write_approval" for s in gated) + " is on")
+    if not reasons:
+        return apply_plan(plan, home, dry_run=False, force_unique_loss=force)
+
+    plan_file = save_plan(layout, plan)
+    cmd = f"hermes memory-tidy apply {plan_file} --write" + (" --force-unique-loss" if force else "")
+    result.update({
+        "status": "needs_user",
+        "written": False,
+        "reason": "; ".join(reasons),
+        "plan_file": str(plan_file),
+        "user_command": cmd,
+        "message": ("Nothing was written. Show the user this diff; if they agree, they run: " + cmd),
+    })
+    return result
+
+
+def save_plan(layout: store.Layout, plan: Any) -> Path:
+    """Store a plan under ``$HERMES_HOME/memory-tidy/plans/`` for the user to apply with the CLI."""
+    clean = [{k: v for k, v in a.items() if not k.startswith("_")} for a in plan_actions(plan)]
+    path = layout.data / "plans" / (time.strftime("%Y%m%d-%H%M%S") + f"-{time.time_ns() % 1_000_000:06d}.json")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    store.atomic_write(path, json.dumps(clean, indent=2, ensure_ascii=False))
+    return path
+
+
+def user_apply(plan: Any, home: Path | None = None, *, write: bool = False, force_unique_loss: bool = False) -> dict:
+    """The user's own ``hermes memory-tidy apply`` command: all actions, the user is the approver."""
+    return apply_plan(plan, home, dry_run=not write, force_unique_loss=force_unique_loss)
 
 
 def json_handler(fn: Callable[[dict], dict]) -> Callable[..., str]:
@@ -268,7 +333,9 @@ def periodic_check(settings: Settings, home: Path | None = None, now: float | No
     if not high and not exact:
         return None
     parts = []
-    if exact and settings.auto_apply_exact:
+    if exact and settings.auto_apply_exact and store.write_approval_enabled(layout.home, "memory"):
+        parts.append("auto_apply_exact is skipped because memory.write_approval is on.")
+    elif exact and settings.auto_apply_exact:
         res = run_exact(settings, layout.home, dry_run=False)
         if res.get("status") == "applied":
             parts.append(f"memory-tidy removed {res['removed']} entr{'y' if res['removed'] == 1 else 'ies'} that "
