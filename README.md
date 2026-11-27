@@ -19,6 +19,7 @@
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
   <a href="#example-output">Example</a> ·
+  <a href="#case-study-the-authors-own-hermes">Case study</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#safety-model">Safety</a> ·
   <a href="#configuration">Configuration</a> ·
@@ -120,6 +121,63 @@ Ask the agent to review the scan and prepare a memory_tidy_apply plan (dry run f
 `apply-exact` without `--write` only previews the change and writes nothing: the report says
 `"status": "dry_run"` and `"removed": 0`, and shows that MEMORY.md would go from 473 to 396 chars
 (5 to 4 entries).
+
+## Case study: the author's own Hermes
+
+memory-tidy was built for, and is used on, the Hermes profile that runs
+[SantriOnline](https://santrionline.com), a one-person Islamic education business in Batu, Indonesia.
+That Hermes works around the clock as a Telegram assistant, coder and content producer, so its
+memory fills up fast. The numbers below come from a read-only scan of that profile (no entry text is
+published here; the memory holds private notes).
+
+**The profile**
+
+| | |
+|---|---|
+| `MEMORY.md` | 5,985 / 6,000 chars (99.8%), 25 entries |
+| `USER.md` | 5,297 / 6,000 chars (88.3%), 23 entries |
+| `SOUL.md` | 16.5 KB, written by the owner |
+| Skills | 328 skills, 2,193 `.md` files indexed |
+| Memory language | mostly Indonesian |
+
+**What happened**
+
+1. **Memory hit the wall.** `MEMORY.md` sat at 99.8%. Hermes' context compression drops the middle of
+   long memory, so new lessons were either refused or squeezed in by shortening older ones by hand.
+2. **The first scan (0.1.0) gave bad advice.** Entries that read like procedures were told to move into
+   skills that had nothing to do with them, for example a note about a GPU cloud account pointed at an
+   ECG-simulator skill, because the target was chosen by word overlap with the skill body. With 300+
+   skills, some huge, there is always a body that shares enough words.
+   That became [#1](https://github.com/Santrionlinecom/hermes-memory-tidy/issues/1).
+3. **0.1.1 fixed it with a topic check.** A skill must now name the entry's topic in its folder name,
+   `name` or `description`, and beat the runner-up by 15%; words shared by most of the profile's own
+   entries (owner name, year) no longer count as topic. A regression test reproduces the failure with
+   60 decoy skills. On the real profile, a note about handling API keys now points at the
+   credential-handling skill instead of a Q&A-bank skill.
+4. **0.1.2 hardened the write path** after the plugin-catalog review
+   ([NousResearch/hermes-agent#159817](https://github.com/NousResearch/hermes-agent/pull/159817)): the
+   model tool honours `write_approval` and never commits model-written text (see
+   [Safety model](#safety-model)).
+
+**What the current scan reports on that profile**
+
+- **0 duplicates of SOUL.md or of a skill, 0 overlapping entries.** The owner already moves rules into
+  `SOUL.md` and procedures into skills, so the memory is mostly unique facts. memory-tidy confirms
+  that with evidence instead of guessing, which is also a result.
+- **3 procedure-like entries (938 chars, about 8% of both files)** that belong in a skill:
+  - a client-operations note -> the client-operations skill (correct);
+  - a credential-intake note -> the credential-handling skill (correct);
+  - a browser-profile note -> a social-media API skill (questionable: the note mentions social media
+    in passing, see [Known limitations](#known-limitations)).
+- **Speed:** full scan against all 2,193 skill files in about 12 s on a laptop CPU; the SOUL-only check
+  that runs at session start takes about 0.3 s.
+
+**Takeaways**
+
+- On a busy profile the win is not deleting a lot, it is knowing *which* entries can move and proving
+  that nothing unique is lost (the unique-fact check refuses a removal that would drop a literal).
+- Suggestions are hints. Two of three were right; the dry run is where a human catches the third.
+- Non-English memory works, with noisier scores (stopwords are English only).
 
 ## Usage
 
